@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - 8001:8000
+    env_file:
+      - .env
+    networks:
+      - app_network
+      - train_network
+    volumes:
+     - .:/usr/src
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --workers 1
+
+  redis:
+    image: redis:latest
+    networks:
+      - app_network
+      - train_network
+    ports:
+      - "6379:6379"
+
+networks:
+  train_network:
+      name: train_network
+      external: true
+  app_network:
+    driver: bridge
+
+volumes:
+  db:
+    driver: local
