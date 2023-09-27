@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import threading
+import re
 
 from app.clients.rabbitMQClient import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient
@@ -134,3 +135,24 @@ def _launch_unity_instante(
     )
 
     logger.info(f"Unity instance terminated. State: SUCCEEDED")
+
+
+    def _extract_info(line):
+        pattern = r"\[INFO\]\s+(\w+)\.\s+Step:\s+(\d+)\.\s+Time Elapsed:\s+([\d.]+)\s+s\.\s+Mean Reward:\s+([\d.-]+)\.\s+Std of Reward:\s+([\d.-]+)\."
+        
+        match = re.search(pattern, line)
+        
+        if match:
+            behaviour, step, time_elapsed, mean_reward, std_reward = match.groups()
+            
+            json_data = {
+                "id":0,
+                "behaviour": behaviour,
+                "Step": int(step),
+                "Time Elapsed": float(time_elapsed),
+                "Mean Reward": float(mean_reward),
+                "Std of Reward": float(std_reward)
+            }
+            
+            return json_data
+        return None
