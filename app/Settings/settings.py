@@ -1,5 +1,6 @@
 from enum import Enum
 import ssl
+from typing import Type
 import uuid
 from pathlib import Path
 from pydantic_settings import BaseSettings
@@ -19,7 +20,9 @@ RABBITMQ_PORT=config('RABBITMQ_PORT')
 
 ROOT_DIR = Path(__file__).parent.parent.parent
 
-
+UNITY_DIR_RUNS = ROOT_DIR / 'unity' / 'runs'
+UNITY_EVNS_DIR = ROOT_DIR / 'unity' / 'unity_envs'
+UNITY_MODELS_CONFIG_DIR = ROOT_DIR / 'unity' / 'model_configs'
 
 class Environments(str, Enum):
     LOCAL = "local"
@@ -28,7 +31,9 @@ class Environments(str, Enum):
 
 class BaseConfig(BaseSettings):
     root_dir: Path = ROOT_DIR
-
+    unity_runs: Path = UNITY_DIR_RUNS
+    unity_envs_dir: Path = UNITY_EVNS_DIR
+    unity_models_configs_dir: Path = UNITY_MODELS_CONFIG_DIR
     env: str = ENV
     node_id: uuid.UUID = NODE_ID
     node_domain: str = NODE_DOMAIN
