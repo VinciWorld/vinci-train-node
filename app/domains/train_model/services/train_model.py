@@ -1,5 +1,7 @@
 from functools import partial
 import logging
+import os
+import subprocess
 import threading
 from app.Settings.settings import settings
 from app.clients.rabbitMQClient import RabbitMQClient, get_rabbitmq_client
