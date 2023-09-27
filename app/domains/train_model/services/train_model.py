@@ -3,14 +3,16 @@ import logging
 import os
 import subprocess
 import threading
-from app.Settings.settings import settings
+
 from app.clients.rabbitMQClient import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient
-from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 from app.domains.train_model.schemas.train_model import TrainJobInstance
+from app.settings import settings
+from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 from app.domains.train_model.schemas.train_queue import TrainJobQueue
 
 logger = logging.getLogger(__name__) 
+
 
 class TrainModelService():
     def __init__(
@@ -21,7 +23,8 @@ class TrainModelService():
         self.redis_client = redis_client
         self.rabbitmq_client = rabbitmq_client
         
-        
+    
+
     def train_model(
             self
     ) -> None:
@@ -66,7 +69,6 @@ def _process_train_job(
         target=_launch_unity_instante,
         args=(train_job_instance, redis_client, rabbitmq_client)
     ).start()
-
 
 def _launch_unity_instante(
         train_job_instance: TrainJobInstance,
