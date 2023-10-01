@@ -7,7 +7,7 @@ import uuid
 from anyio import sleep
 import pika
 from typing import Callable
-from app.configuration.settings import Environments, settings, rabbitmq_settings
+from app.settings.settings import Environments, settings, rabbitmq_settings
 from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 
 from app.domains.train_model.schemas.train_queue import TrainJobQueue

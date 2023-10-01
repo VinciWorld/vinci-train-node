@@ -7,7 +7,7 @@ import websockets
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
-from app.clients.rabbitMQClient import RabbitMQClient, get_rabbitmq_client
+from app.clients.rabbitmq_client import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient, get_redis_client
 from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 from app.domains.train_model.services.train_model import TrainModelService

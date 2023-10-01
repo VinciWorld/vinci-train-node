@@ -5,10 +5,10 @@ import subprocess
 import threading
 import re
 
-from app.clients.rabbitMQClient import RabbitMQClient, get_rabbitmq_client
+from app.clients.rabbitmq_client import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient
-from app.domains.train_model.schemas.train_model import TrainJobInstance
-from app.settings import settings
+from app.domains.train_model.schemas.train_job_instance import TrainJobInstance
+from app.settings.settings import settings
 from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 from app.domains.train_model.schemas.train_queue import TrainJobQueue
 

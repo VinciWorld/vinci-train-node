@@ -4,7 +4,7 @@ import uuid
 
 from redis import Redis
 import redis
-from app.domains.train_model.schemas.train_model import TrainJobInstance
+from app.domains.train_model.schemas.train_job_instance import TrainJobInstance
 
 
 from app.domains.train_model.schemas.train_queue import TrainJobQueue
