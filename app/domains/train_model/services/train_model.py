@@ -91,9 +91,9 @@ def _launch_unity_instante(
 
         #TODO Save model config yml to be loaded by ML 
 
-        behaviour_name = "Hallway"
+        behaviour_name = train_job_instance.nn_model_config.behavior_name
         job_count = redis_client.increment_trained_jobs_count()
-        behaviour_path = settings.unity_behaviors_dir / "hallway.yml"
+        behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
         env_pah = settings.unity_envs_dir / "test-env.x86_64"
         port_suffix = str(job_count % 20)
         port = "500" + port_suffix
