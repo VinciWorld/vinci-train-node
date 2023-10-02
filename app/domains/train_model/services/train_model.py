@@ -80,7 +80,7 @@ def _launch_unity_instante(
 
     run_id = train_job_instance.run_id
 
-    run_path = settings.unity_runs / str(run_id)
+    run_path = settings.unity_reults / str(run_id)
     run_path.mkdir(parents=True, exist_ok=True)
 
 
@@ -88,7 +88,7 @@ def _launch_unity_instante(
 
       
     job_count = redis_client.increment_trained_jobs_count()
-    config_path = settings.unity_models_configs_dir / "hallway.yml"
+    config_path = settings.unity_behaviors_dir / "hallway.yml"
     env_pah = settings.unity_envs_dir / "test-env.x86_64"
     port_suffix = str(job_count % 20)
     port = "500" + port_suffix
@@ -111,17 +111,21 @@ def _launch_unity_instante(
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         logger.info(f"Unity instance Launched run_id: {run_id}")
 
-        logger.info(os.getcwd())
-        with open(f"unity/{run_id}-metrics.txt", mode="w", buffering=1) as file:
+        ml_log = []
+
+        with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
             while(True):
                 retcode = p.poll() 
                 line = p.stdout.readline() # type:ignore
                 line = line.decode('utf-8')
-                file.write(str(line))
+                ml_log.append(line)
+                metrics = _extract_metrics(line)
+                redis_client.push_log_metrics(metrics)
+                
                 if retcode is not None:
+                    check_if_succeeded(line)
                     logger.info(f"Unity instance terminated: {run_id}")
-                    file.write("exit")
-                    file.close()
+                    ml_log.append("exit")
                     break
     except Exception as e:
         logger.error(f"Unity instance Failed. ERROR: {e}")
@@ -129,6 +133,9 @@ def _launch_unity_instante(
             train_job_instance.run_id, TrainJobInstanceStatus.FAILED
         )
         return
+    finally:
+        with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
+            file.writelines(ml_log)
 
     rabbitmq_client.enqueue_train_job_status_update(
         train_job_instance.run_id, TrainJobInstanceStatus.SUCCEEDED
@@ -136,8 +143,13 @@ def _launch_unity_instante(
 
     logger.info(f"Unity instance terminated. State: SUCCEEDED")
 
+    def check_if_succeeded(line: str):
+        if "[INFO] Copied" in line:
+            return True
+        else:
+            raise Exception(line)
 
-    def _extract_info(line):
+    def _extract_metrics(line):
         pattern = r"\[INFO\]\s+(\w+)\.\s+Step:\s+(\d+)\.\s+Time Elapsed:\s+([\d.]+)\s+s\.\s+Mean Reward:\s+([\d.-]+)\.\s+Std of Reward:\s+([\d.-]+)\."
         
         match = re.search(pattern, line)

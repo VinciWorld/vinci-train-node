@@ -16,6 +16,13 @@ class RedisClient():
         self.redis_client = redis_client
 
 
+    def push_log_metrics(self, run_id: uuid.UUID, metrics: str):
+        self.redis_client.rpush(run_id, metrics)
+
+    def pop_log_metrics(self, run_id: uuid.UUID):
+        _, line = self.redis_client.blpop(run_id, 2)
+        return line
+
     def save_run_status(self, run_id: uuid.UUID, status: str):
         key = str(run_id)
         self.redis_client.hset(key, "status", status)

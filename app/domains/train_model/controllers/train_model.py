@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import threading
+import uuid
+from anyio import Event
 
 import websockets
 
@@ -67,6 +69,16 @@ async def ws_train_instance_stream(
                     train_job_instance.run_id, TrainJobInstanceStatus.RUNNING
                 )
 
+                stop_event = Event()
+                asyncio.create_task(
+                        send_redis_data_to_ws(
+                        train_job_instance.run_id,
+                        ws_central,
+                        redis_client,
+                        stop_event
+                    )
+                )
+
                 try:
                     while ws_node.client_state == WebSocketState.CONNECTED:
                         data = await ws_node.receive_text()
@@ -79,8 +91,8 @@ async def ws_train_instance_stream(
     except Exception as e:
         logger.info(f"Failed ERROR: {e}")
     finally:
-        logger.info(f"State: {ws_node.client_state}")
         try:
+            stop_event.set() 
             await ws_node.close()
             logger.info(f"Closed")
         except Exception as e:
@@ -92,6 +104,23 @@ async def ws_train_instance_stream(
                 logger.info(f"Central WebSocket closed")
         except Exception as e:
             logger.error(f"Error closing central Node WebSocket: {e}")
+
+
+
+
+async def send_redis_data_to_ws(
+        run_id: uuid.UUID,
+        ws_central: WebSocket,
+        redis_client: RedisClient,
+        stop_event: Event  
+):
+
+    while not stop_event.is_set():
+        metrics_json = redis_client.pop_log_metrics(run_id) 
+        if metrics_json:
+            await ws_central.send(metrics_json)
+        await asyncio.sleep(0.1)
+
 
 
 @train_model_router.on_event("shutdown")
