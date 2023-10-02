@@ -16,12 +16,17 @@ class RedisClient():
         self.redis_client = redis_client
 
 
-    def push_log_metrics(self, run_id: uuid.UUID, metrics: str):
-        self.redis_client.rpush(run_id, metrics)
+    def push_log_metrics(self, run_id: uuid.UUID, metrics_json: str):
+        key = f"{str(run_id)}-metrics"
+        self.redis_client.rpush(key, metrics_json)
 
-    def pop_log_metrics(self, run_id: uuid.UUID):
-        _, line = self.redis_client.blpop(run_id, 2)
-        return line
+    def pop_log_metrics(self, run_id: uuid.UUID) -> Optional[str]:
+        key = f"{str(run_id)}-metrics"
+        result = self.redis_client.blpop(key, 2)
+        if result:
+            _, line = result
+            return line
+        return None
 
     def save_run_status(self, run_id: uuid.UUID, status: str):
         key = str(run_id)

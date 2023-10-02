@@ -70,19 +70,23 @@ async def ws_train_instance_stream(
                 )
 
                 stop_event = Event()
+                ws_central_lock = asyncio.Lock()
                 asyncio.create_task(
-                        send_redis_data_to_ws(
+                        send_metrics_data_to_central_node(
                         train_job_instance.run_id,
                         ws_central,
                         redis_client,
-                        stop_event
+                        stop_event,
+                        ws_central_lock
                     )
                 )
 
                 try:
                     while ws_node.client_state == WebSocketState.CONNECTED:
                         data = await ws_node.receive_text()
-                        await ws_central.send(data)
+                        #logger.info(f"******{data}")
+                        async with ws_central_lock:
+                            await ws_central.send(data)
 
                 except WebSocketDisconnect as e:
                     logger.info(f"WebSocketDisconnect: {e}")
@@ -108,17 +112,20 @@ async def ws_train_instance_stream(
 
 
 
-async def send_redis_data_to_ws(
+async def send_metrics_data_to_central_node(
         run_id: uuid.UUID,
         ws_central: WebSocket,
         redis_client: RedisClient,
-        stop_event: Event  
+        stop_event: Event,
+        ws_central_lock: asyncio.Lock
 ):
 
     while not stop_event.is_set():
         metrics_json = redis_client.pop_log_metrics(run_id) 
         if metrics_json:
-            await ws_central.send(metrics_json)
+            async with ws_central_lock:
+                logger.info(f"metrics_json: {metrics_json}")
+                await ws_central.send(metrics_json)
         await asyncio.sleep(0.1)
 
 

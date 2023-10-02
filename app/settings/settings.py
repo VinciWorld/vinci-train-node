@@ -24,7 +24,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 UNITY_DIR_RESULTS = ROOT_DIR / 'results'
 UNITY_DIR_RUNS = UNITY_DIR_RESULTS / 'run_logs'
 UNITY_EVNS_DIR = ROOT_DIR / 'unity' / 'unity_envs'
-UNITY_BEHAVIORS_DIR = ROOT_DIR / 'unity' / 'model_configs'
+UNITY_BEHAVIORS_DIR = ROOT_DIR / 'unity' / 'behaviors'
 
 class Environments(str, Enum):
     LOCAL = "local"
