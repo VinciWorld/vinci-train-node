@@ -84,8 +84,9 @@ async def ws_train_instance_stream(
                 try:
                     while ws_node.client_state == WebSocketState.CONNECTED:
                         data = await ws_node.receive_text()
-                        #logger.info(f"******{data}")
+                        
                         async with ws_central_lock:
+                            #logger.info(f"******{data}")
                             await ws_central.send(data)
 
                 except WebSocketDisconnect as e:
@@ -125,7 +126,7 @@ async def send_metrics_data_to_central_node(
         if metrics_json:
             async with ws_central_lock:
                 logger.info(f"metrics_json: {metrics_json}")
-                await ws_central.send(metrics_json)
+                await ws_central.send(metrics_json.decode('utf-8'))
         await asyncio.sleep(0.1)
 
 
