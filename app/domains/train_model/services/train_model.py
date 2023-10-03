@@ -1,5 +1,6 @@
 import asyncio
 from functools import partial
+from io import BytesIO
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import subprocess
 import threading
 import re
 import uuid
+import zipfile
 
 import yaml
 import httpx
@@ -97,13 +99,15 @@ def _launch_unity_instante(
         steps = train_job_instance.nn_model_config.steps
 
         if train_job_instance.job_type == TrainJobType.RESUME:
-              UpdateMaxSteps(steps, behaviour_name, false)
+            UpdateMaxSteps(steps, behaviour_name, True)
+        else:
+            UpdateMaxSteps(steps, behaviour_name)
 
-        UpdateMaxSteps(steps, behaviour_name)
-
-        job_count = redis_client.increment_trained_jobs_count()
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
         env_pah = settings.unity_envs_dir / "test-env.x86_64"
+
+        # Configure instance port
+        job_count = redis_client.increment_trained_jobs_count()
         port_suffix = str(job_count % 20)
         port = "500" + port_suffix
     
@@ -190,6 +194,41 @@ def _send_model_to_endpoint(
 
     except Exception as e:
         print(f"Error: {e}")
+
+
+def _send_train_results(
+        run_id: uuid.UUID,
+        behavior_name: str,
+        central_node_host: str
+    ):
+
+    url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/results"
+    directory_to_zip = f"results/{run_id}/"
+
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED) as zf:
+        for foldername, subfolders, filenames in os.walk(directory_to_zip):
+            for filename in filenames:
+                file_path = os.path.join(foldername, filename)
+                arcname = os.path.relpath(file_path, directory_to_zip)
+                zf.write(file_path, arcname)
+
+    zip_buffer.seek(0)
+
+    try:
+        with httpx.Client() as client:
+            files = {'results_zip': ('results.zip', zip_buffer)}
+            response = client.put(url, files=files)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception(f"Failed to send model. Status code: {response.status_code}, Response: {response.text}")
+
+    except Exception as e:
+        raise e
+
 
 def _check_if_succeeded(line: str):
     logger.info(line)
