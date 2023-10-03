@@ -7,6 +7,8 @@ import subprocess
 import threading
 import re
 import uuid
+
+import yaml
 import httpx
 import traceback
 
@@ -14,7 +16,7 @@ from app.clients.rabbitmq_client import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient
 from app.domains.train_model.schemas.train_job_instance import TrainJobInstance
 from app.settings.settings import settings
-from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
+from app.domains.train_model.schemas.constants import TrainJobInstanceStatus, TrainJobType
 from app.domains.train_model.schemas.train_queue import TrainJobQueue
 
 logger = logging.getLogger(__name__) 
@@ -92,6 +94,13 @@ def _launch_unity_instante(
         #TODO Save model config yml to be loaded by ML 
 
         behaviour_name = train_job_instance.nn_model_config.behavior_name
+        steps = train_job_instance.nn_model_config.steps
+
+        if train_job_instance.job_type == TrainJobType.RESUME:
+              UpdateMaxSteps(steps, behaviour_name, false)
+
+        UpdateMaxSteps(steps, behaviour_name)
+
         job_count = redis_client.increment_trained_jobs_count()
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
         env_pah = settings.unity_envs_dir / "test-env.x86_64"
@@ -188,6 +197,31 @@ def _check_if_succeeded(line: str):
         return True
     else:
         raise Exception(line)
+
+def UpdateMaxSteps(steps: int, behavior_name: str, add: bool = False):
+
+    file_path = settings.unity_behaviors_dir / f"{behavior_name}.yml"
+
+    if not file_path.exists():
+        return f"Error: File {file_path} does not exist."
+
+    try:
+        with open(file_path, 'r') as file:
+            data = yaml.safe_load(file)
+
+        if add:
+            data['behaviors'][behavior_name]['max_steps'] += steps 
+        else:
+            data['behaviors'][behavior_name]['max_steps'] = steps
+
+        with open(file_path, 'w') as file:
+            yaml.safe_dump(data, file)
+
+        return f"Successfully updated max_steps for {behavior_name}."
+
+    except Exception as e:
+        return f"Error updating max_steps: {str(e)}"
+
 
 def _extract_metrics(line) -> str:
     pattern = r"\[INFO\]\s+(\w+)\.\s+Step:\s+(\d+)\.\s+Time Elapsed:\s+([\d.]+)\s+s\.\s+Mean Reward:\s+([\d.-]+)\.\s+Std of Reward:\s+([\d.-]+)\."
