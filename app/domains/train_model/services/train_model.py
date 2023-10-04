@@ -77,13 +77,14 @@ def _process_train_job(
 
     threading.Thread(
         target=_launch_unity_instante,
-        args=(train_job_instance, redis_client, rabbitmq_client)
+        args=(train_job_instance, redis_client, rabbitmq_client, method.delivery_tag)
     ).start()
 
 def _launch_unity_instante(
         train_job_instance: TrainJobInstance,
         redis_client: RedisClient,
-        rabbitmq_client: RabbitMQClient
+        rabbitmq_client: RabbitMQClient,
+        delivery_tag
         ):
     
     try:
@@ -104,7 +105,7 @@ def _launch_unity_instante(
             UpdateMaxSteps(steps, behaviour_name)
 
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
-        env_pah = settings.unity_envs_dir / "test-env.x86_64"
+        env_pah = settings.unity_envs_dir / train_job_instance.env_config.env_id / "env.x86_64"
 
         # Configure instance port
         job_count = redis_client.increment_trained_jobs_count()
@@ -165,6 +166,8 @@ def _launch_unity_instante(
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.FAILED
         )
+
+        rabbitmq_client.acknowledge_job_failed(delivery_tag)
         return
     finally:
         with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
@@ -177,7 +180,7 @@ def _send_model_to_endpoint(
         central_node_host: str
     ):
 
-    url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/nn-models"
+    url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
 
     model_path = f"results/{run_id}/{behavior_name}.onnx"
 
