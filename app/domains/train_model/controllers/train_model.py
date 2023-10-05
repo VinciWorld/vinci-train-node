@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import threading
+import uuid
+from anyio import Event
 
 import websockets
 
@@ -67,10 +69,25 @@ async def ws_train_instance_stream(
                     train_job_instance.run_id, TrainJobInstanceStatus.RUNNING
                 )
 
+                stop_event = Event()
+                ws_central_lock = asyncio.Lock()
+                asyncio.create_task(
+                        send_metrics_data_to_central_node(
+                        train_job_instance.run_id,
+                        ws_central,
+                        redis_client,
+                        stop_event,
+                        ws_central_lock
+                    )
+                )
+
                 try:
                     while ws_node.client_state == WebSocketState.CONNECTED:
                         data = await ws_node.receive_text()
-                        await ws_central.send(data)
+                        
+                        async with ws_central_lock:
+                            #logger.info(f"******{data}")
+                            await ws_central.send(data)
 
                 except WebSocketDisconnect as e:
                     logger.info(f"WebSocketDisconnect: {e}")
@@ -79,8 +96,8 @@ async def ws_train_instance_stream(
     except Exception as e:
         logger.info(f"Failed ERROR: {e}")
     finally:
-        logger.info(f"State: {ws_node.client_state}")
         try:
+            stop_event.set() 
             await ws_node.close()
             logger.info(f"Closed")
         except Exception as e:
@@ -92,6 +109,26 @@ async def ws_train_instance_stream(
                 logger.info(f"Central WebSocket closed")
         except Exception as e:
             logger.error(f"Error closing central Node WebSocket: {e}")
+
+
+
+
+async def send_metrics_data_to_central_node(
+        run_id: uuid.UUID,
+        ws_central: WebSocket,
+        redis_client: RedisClient,
+        stop_event: Event,
+        ws_central_lock: asyncio.Lock
+):
+
+    while not stop_event.is_set():
+        metrics_json = redis_client.pop_log_metrics(run_id) 
+        if metrics_json:
+            async with ws_central_lock:
+                logger.info(f"metrics_json: {metrics_json}")
+                await ws_central.send(metrics_json.decode('utf-8'))
+        await asyncio.sleep(0.1)
+
 
 
 @train_model_router.on_event("shutdown")

@@ -5,6 +5,7 @@ from app.domains.train_model.schemas.constants import TrainJobInstanceStatus, Tr
 
 
 class NnModelConfig(BaseModel):
+    behavior_name: str
     steps: int
 
 

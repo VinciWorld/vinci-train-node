@@ -1,9 +1,14 @@
+import asyncio
 from functools import partial
+import json
 import logging
 import os
 import subprocess
 import threading
 import re
+import uuid
+import httpx
+import traceback
 
 from app.clients.rabbitmq_client import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient
@@ -76,83 +81,130 @@ def _launch_unity_instante(
         redis_client: RedisClient,
         rabbitmq_client: RabbitMQClient
         ):
-    logger.info("Preparing to launch Unity instance")
-
-    run_id = train_job_instance.run_id
-
-    run_path = settings.unity_runs / str(run_id)
-    run_path.mkdir(parents=True, exist_ok=True)
-
-
-    #TODO Save model config yml to be loaded by ML 
-
-      
-    job_count = redis_client.increment_trained_jobs_count()
-    config_path = settings.unity_models_configs_dir / "hallway.yml"
-    env_pah = settings.unity_envs_dir / "test-env.x86_64"
-    port_suffix = str(job_count % 20)
-    port = "500" + port_suffix
-  
-    os.chmod(env_pah, 0o777)
-
-    cmd = (
-        f"mlagents-learn {config_path} "
-        f"--run-id {str(run_id)} "
-        f"--force "
-        f"--env {env_pah} " 
-        f"--no-graphics "
-        f"--base-port {port}"
-    )
-    rabbitmq_client.enqueue_train_job_status_update(
-        train_job_instance.run_id, TrainJobInstanceStatus.STARTING
-    )
-
+    
     try:
+        run_id = train_job_instance.run_id
+        logger.info(f"Preparing to launch Unity instance {run_id}")
+
+        run_path = settings.unity_reults / str(run_id)
+        run_path.mkdir(parents=True, exist_ok=True)
+
+        #TODO Save model config yml to be loaded by ML 
+
+        behaviour_name = train_job_instance.nn_model_config.behavior_name
+        job_count = redis_client.increment_trained_jobs_count()
+        behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
+        env_pah = settings.unity_envs_dir / "test-env.x86_64"
+        port_suffix = str(job_count % 20)
+        port = "500" + port_suffix
+    
+        os.chmod(env_pah, 0o777)
+
+        cmd = (
+            f"mlagents-learn {behaviour_path} "
+            f"--run-id {str(run_id)} "
+            f"--force "
+            f"--env {env_pah} " 
+            f"--no-graphics "
+            f"--base-port {port}"
+        )
+        rabbitmq_client.enqueue_train_job_status_update(
+            train_job_instance.run_id, TrainJobInstanceStatus.STARTING
+        )
+
+ 
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         logger.info(f"Unity instance Launched run_id: {run_id}")
 
-        logger.info(os.getcwd())
-        with open(f"unity/{run_id}-metrics.txt", mode="w", buffering=1) as file:
-            while(True):
-                retcode = p.poll() 
-                line = p.stdout.readline() # type:ignore
-                line = line.decode('utf-8')
-                file.write(str(line))
-                if retcode is not None:
-                    logger.info(f"Unity instance terminated: {run_id}")
-                    file.write("exit")
-                    file.close()
-                    break
+        ml_log = []
+
+        while(True):
+            retcode = p.poll() 
+            line = p.stdout.readline() # type:ignore
+            line = line.decode('utf-8')
+            ml_log.append(line)
+            metrics = _extract_metrics(line)
+            if metrics:
+                redis_client.push_log_metrics(run_id, metrics)
+
+            if retcode is not None:
+                _check_if_succeeded(ml_log[len(line) - 3])
+                logger.info(f"Unity instance terminated: {run_id}")
+                ml_log.append("exit")
+                break
+
+        _send_model_to_endpoint(
+            run_id,
+            behaviour_name,
+            train_job_instance.central_node_url
+
+        )
+
+        rabbitmq_client.enqueue_train_job_status_update(
+            train_job_instance.run_id, TrainJobInstanceStatus.SUCCEEDED
+        )
+
+
+        logger.info(f"Unity instance SUCCEEDED {run_id}")
+
     except Exception as e:
-        logger.error(f"Unity instance Failed. ERROR: {e}")
+        logger.error(f"Unity instance Failed {run_id}  ERROR: {e}\n{traceback.format_exc()}")
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.FAILED
         )
         return
+    finally:
+        with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
+            file.writelines(ml_log)
 
-    rabbitmq_client.enqueue_train_job_status_update(
-        train_job_instance.run_id, TrainJobInstanceStatus.SUCCEEDED
-    )
+    
+def _send_model_to_endpoint(
+        run_id: uuid.UUID,
+        behavior_name: str,
+        central_node_host: str
+    ):
 
-    logger.info(f"Unity instance terminated. State: SUCCEEDED")
+    url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/nn-models"
 
+    model_path = f"results/{run_id}/{behavior_name}.onnx"
 
-    def _extract_info(line):
-        pattern = r"\[INFO\]\s+(\w+)\.\s+Step:\s+(\d+)\.\s+Time Elapsed:\s+([\d.]+)\s+s\.\s+Mean Reward:\s+([\d.-]+)\.\s+Std of Reward:\s+([\d.-]+)\."
+    try:
+        with httpx.Client() as client:
+            with open(model_path, 'rb') as model_file:
+                files = {'nn_model': model_file}
+                response = client.put(url, files=files)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception(f"Failed to send model. Status code: {response.status_code}, Response: {response.text}")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+def _check_if_succeeded(line: str):
+    logger.info(line)
+    if "[INFO] Copied" in line:
+        return True
+    else:
+        raise Exception(line)
+
+def _extract_metrics(line) -> str:
+    pattern = r"\[INFO\]\s+(\w+)\.\s+Step:\s+(\d+)\.\s+Time Elapsed:\s+([\d.]+)\s+s\.\s+Mean Reward:\s+([\d.-]+)\.\s+Std of Reward:\s+([\d.-]+)\."
+    
+    match = re.search(pattern, line)
+    
+    if match:
+        behaviour, step, time_elapsed, mean_reward, std_reward = match.groups()
         
-        match = re.search(pattern, line)
+        json_data = {
+            "id":0,
+            "behaviour": behaviour,
+            "Step": int(step),
+            "Time Elapsed": float(time_elapsed),
+            "Mean Reward": float(mean_reward),
+            "Std of Reward": float(std_reward)
+        }
         
-        if match:
-            behaviour, step, time_elapsed, mean_reward, std_reward = match.groups()
-            
-            json_data = {
-                "id":0,
-                "behaviour": behaviour,
-                "Step": int(step),
-                "Time Elapsed": float(time_elapsed),
-                "Mean Reward": float(mean_reward),
-                "Std of Reward": float(std_reward)
-            }
-            
-            return json_data
-        return None
+        return json.dumps(json_data)
+    return None

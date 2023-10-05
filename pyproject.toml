@@ -19,6 +19,7 @@ subprocess-run = "^0.0.8"
 mlagents = "^0.30.0"
 protobuf = "3.20.0"
 six = "^1.16.0"
+httpx = "^0.25.0"
 
 
 [build-system]
