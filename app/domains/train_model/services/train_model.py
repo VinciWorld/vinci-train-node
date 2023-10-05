@@ -276,10 +276,10 @@ def _extract_metrics(line) -> str:
         json_data = {
             "id":0,
             "behaviour": behaviour,
-            "Step": int(step),
-            "Time Elapsed": float(time_elapsed),
-            "Mean Reward": float(mean_reward),
-            "Std of Reward": float(std_reward)
+            "step": int(step),
+            "time_elapsed": float(time_elapsed),
+            "mean_reward": float(mean_reward),
+            "std_reward": float(std_reward)
         }
         
         return json.dumps(json_data)
