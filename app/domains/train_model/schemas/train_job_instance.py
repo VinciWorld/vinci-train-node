@@ -10,6 +10,7 @@ class NnModelConfig(BaseModel):
 
 
 class EnvConfig(BaseModel):
+    agent_id: str
     env_id: str
     num_of_areas: int
 
