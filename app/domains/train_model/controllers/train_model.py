@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import threading
+import uuid
+from anyio import Event
 
 import websockets
 
@@ -10,6 +12,8 @@ from fastapi.websockets import WebSocketState
 from app.clients.rabbitmq_client import RabbitMQClient, get_rabbitmq_client
 from app.clients.redis_client import RedisClient, get_redis_client
 from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
+from app.domains.train_model.schemas.stream_messages import TrainJobStream
+from app.domains.train_model.schemas.train_queue import TrainJobQueue
 from app.domains.train_model.services.train_model import TrainModelService
 
 
@@ -44,10 +48,11 @@ async def ws_train_instance_stream(
     logger.info(f"Accept")
 
     ws_central = None
+    stop_event = Event()
     try:
-        data = await ws_node.receive_text()
+        #data = await ws_node.receive_text()
 
-        logger.info(f"Welcome data: {data}")
+        logger.info(f"Welcome from instance")
 
         train_job_instance = redis_client.retrieve_current_train_job()
         delivery_tag = redis_client.get_delivery_tag(train_job_instance.run_id)
@@ -59,18 +64,46 @@ async def ws_train_instance_stream(
                 data = {
                          "run_id": str(train_job_instance.run_id)
                 }
-                logger.info(f"State: {ws_node.client_state}")
                 await ws_central.send(json.dumps(data))
 
-                rabbitmq_client.acknowledge_job(delivery_tag)
+                logger.info(f"send to instante: {train_job_instance.model_dump_json()}")
+
+                train_job_stream = TrainJobStream(
+                    msg_id="3",
+                    train_job= TrainJobQueue(**train_job_instance.__dict__)
+                )
+
+                logger.info(f"send to instante: {train_job_stream.model_dump_json()}")
+                await ws_node.send_text(train_job_stream.model_dump_json())
+
+                instance_response = await ws_node.receive_text()
+
+                logger.info(instance_response)
+
+                rabbitmq_client.acknowledge_job_sucess(delivery_tag)
                 rabbitmq_client.enqueue_train_job_status_update(
                     train_job_instance.run_id, TrainJobInstanceStatus.RUNNING
+                )
+
+                
+                ws_central_lock = asyncio.Lock()
+                asyncio.create_task(
+                        send_metrics_data_to_central_node(
+                        train_job_instance.run_id,
+                        ws_central,
+                        redis_client,
+                        stop_event,
+                        ws_central_lock
+                    )
                 )
 
                 try:
                     while ws_node.client_state == WebSocketState.CONNECTED:
                         data = await ws_node.receive_text()
-                        await ws_central.send(data)
+                        
+                        async with ws_central_lock:
+                            #logger.info(f"******{data}")
+                            await ws_central.send(data)
 
                 except WebSocketDisconnect as e:
                     logger.info(f"WebSocketDisconnect: {e}")
@@ -79,8 +112,8 @@ async def ws_train_instance_stream(
     except Exception as e:
         logger.info(f"Failed ERROR: {e}")
     finally:
-        logger.info(f"State: {ws_node.client_state}")
         try:
+            stop_event.set() 
             await ws_node.close()
             logger.info(f"Closed")
         except Exception as e:
@@ -92,6 +125,26 @@ async def ws_train_instance_stream(
                 logger.info(f"Central WebSocket closed")
         except Exception as e:
             logger.error(f"Error closing central Node WebSocket: {e}")
+
+
+
+
+async def send_metrics_data_to_central_node(
+        run_id: uuid.UUID,
+        ws_central: WebSocket,
+        redis_client: RedisClient,
+        stop_event: Event,
+        ws_central_lock: asyncio.Lock
+):
+
+    while not stop_event.is_set():
+        metrics_json = redis_client.pop_log_metrics(run_id) 
+        if metrics_json:
+            async with ws_central_lock:
+                logger.info(f"metrics_json: {metrics_json}")
+                await ws_central.send(metrics_json.decode('utf-8'))
+        await asyncio.sleep(0.1)
+
 
 
 @train_model_router.on_event("shutdown")

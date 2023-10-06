@@ -5,10 +5,12 @@ from app.domains.train_model.schemas.constants import TrainJobInstanceStatus, Tr
 
 
 class NnModelConfig(BaseModel):
+    behavior_name: str
     steps: int
 
 
 class EnvConfig(BaseModel):
+    agent_id: str
     env_id: str
     num_of_areas: int
 
