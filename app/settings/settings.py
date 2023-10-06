@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings
 from decouple import config
 
 ENV: str = config('ENV', default="local")
+SECURE_CONNECTION: bool = config('SECURE_CONNECTION', default=False)
 NODE_ID: str = config('NODE_ID')
 NODE_DOMAIN: str = config('NODE_DOMAIN')
 FASTAPI_HOST: str = config('FASTAPI_HOST', default="127.0.0.1")
@@ -46,6 +47,8 @@ class BaseConfig(BaseSettings):
     rabbitmq_host: str = RABBITMQ_HOST
     rabbitmq_port: str = RABBITMQ_PORT
     s3_bucket: str = ""
+    http_prefix: str = "https" if SECURE_CONNECTION else "http"
+    ws_prefix: str = "wss" if SECURE_CONNECTION else "ws"
 
 class Settings(BaseConfig):
     pass
