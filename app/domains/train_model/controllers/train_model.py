@@ -15,6 +15,7 @@ from app.domains.train_model.schemas.constants import TrainJobInstanceStatus
 from app.domains.train_model.schemas.stream_messages import TrainJobStream
 from app.domains.train_model.schemas.train_queue import TrainJobQueue
 from app.domains.train_model.services.train_model import TrainModelService
+from app.settings.settings import settings
 
 
 
@@ -59,7 +60,7 @@ async def ws_train_instance_stream(
         if train_job_instance:
             central_node_url = train_job_instance.central_node_url
             logger.info(f"Connecting central node: {central_node_url}")
-            async with websockets.connect(f"ws://{central_node_url}/ws/v1/train-node-stream") as ws_central:
+            async with websockets.connect(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream") as ws_central:
                 logger.info(f"Connected to central node: {central_node_url}")
                 data = {
                          "run_id": str(train_job_instance.run_id)
