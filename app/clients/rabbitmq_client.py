@@ -82,15 +82,29 @@ class RabbitMQClient:
 
         logging.info(f"Stop consuming {queue_name}")
 
-    def acknowledge_job(self, delivery_tag):
+    def acknowledge_job_sucess(self, delivery_tag):
         logger.info(f"tag: {delivery_tag}")
         with self.train_job_lock:
             self.consume_train_jobs_channel.basic_ack(delivery_tag=delivery_tag)
         logger.info(f"confirmed tag: {delivery_tag}")
 
-    def close(self):
+    # the job is failed and is removed from the queue
+    def acknowledge_job_failed(self, delivery_tag):
+        logger.info(f"tag: {delivery_tag}")
         with self.train_job_lock:
-            self.is_consuming = False
+            self.consume_train_jobs_channel.basic_nack(delivery_tag=delivery_tag, requeue=False)
+        logger.info(f"failed tag: {delivery_tag}")
+
+    # Use when the job failed and want to set to the queue again
+    def acknowledge_job_failed_and_requeue(self, delivery_tag):
+        logger.info(f"tag: {delivery_tag}")
+        with self.train_job_lock:
+            self.consume_train_jobs_channel.basic_reject(delivery_tag=delivery_tag, requeue=True)
+        logger.info(f"rejected tag: {delivery_tag}")
+
+        def close(self):
+            with self.train_job_lock:
+                self.is_consuming = False
 
 @lru_cache
 def get_rabbitmq_client() -> RabbitMQClient:
