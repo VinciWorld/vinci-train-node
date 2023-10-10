@@ -88,6 +88,7 @@ def _launch_unity_instante(
         ):
     
     try:
+        ml_log = []
         run_id = train_job_instance.run_id
         logger.info(f"Preparing to launch Unity instance {run_id}")
 
@@ -130,8 +131,6 @@ def _launch_unity_instante(
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         logger.info(f"Unity instance Launched run_id: {run_id}")
 
-        ml_log = []
-
         while(True):
             retcode = p.poll() 
             line = p.stdout.readline() # type:ignore
@@ -168,6 +167,7 @@ def _launch_unity_instante(
         )
 
         rabbitmq_client.acknowledge_job_failed(delivery_tag)
+        ml_log.append(str(e))
         return
     finally:
         with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
