@@ -10,7 +10,7 @@ behaviors:
       learning_rate_schedule: linear
       num_epoch: 3
     keep_checkpoints: 30
-    max_steps: 20000
+    max_steps: 60000
     network_settings:
       hidden_units: 128
       memory:
