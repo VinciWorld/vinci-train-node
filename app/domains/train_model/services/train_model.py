@@ -208,8 +208,8 @@ def _send_model_to_endpoint(
         central_node_host: str
     ):
 
-    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
-    #url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+    #url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+    url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
 
     model_path = f"results/{run_id}/{behavior_name}.onnx"
 
@@ -234,8 +234,8 @@ def _send_train_results(
         central_node_host: str
     ):
     
-    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/results"
-    #url = f"http://{central_node_host}/api/v1/train-jobs/{run_id}/results"
+    #url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/results"
+    url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/results"
     directory_to_zip = f"results/{run_id}/"
 
     zip_buffer = BytesIO()
