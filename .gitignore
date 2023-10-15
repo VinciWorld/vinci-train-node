@@ -122,4 +122,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-results/
+results/*
+!results/base_model/
