@@ -17,6 +17,7 @@ RABBITMQ_USER=config('RABBITMQ_USER')
 RABBITMQ_PASSWORD=config('RABBITMQ_PASSWORD')
 RABBITMQ_HOST=config('RABBITMQ_HOST')
 RABBITMQ_PORT=config('RABBITMQ_PORT')
+MAX_JOBS = config('MAX_JOBS')
 RUNNER_ID: str = config('RUNNER_ID', default="unknown-runner")
 
 
@@ -49,8 +50,9 @@ class BaseConfig(BaseSettings):
     rabbitmq_port: str = RABBITMQ_PORT
     runner_id: str = RUNNER_ID
     s3_bucket: str = ""
-    http_prefix: str = "https" if SECURE_CONNECTION else "http"
-    ws_prefix: str = "wss" if SECURE_CONNECTION else "ws"
+    max_jobs: int = MAX_JOBS
+    http_prefix: str = "http" if SECURE_CONNECTION else "https"
+    ws_prefix: str = "ws" if SECURE_CONNECTION else "wss"
 
 class Settings(BaseConfig):
     pass
