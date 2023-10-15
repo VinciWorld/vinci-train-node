@@ -33,7 +33,7 @@ class TrainModelService():
         self.redis_client = redis_client
         self.rabbitmq_client = rabbitmq_client
         
-    
+
 
     def train_model(
             self
@@ -50,6 +50,25 @@ class TrainModelService():
             logger.info(f"Rabbitmq stream connection lost: {e}")
   
         logger.info("Waitting for train jobs...")
+
+
+"""
+    def train_model(
+            self
+    ) -> None:
+        
+        callback_with_shared_state = partial(
+            _process_train_job,
+            redis_client=self.redis_client
+        )
+
+        try:
+            self.rabbitmq_client.consume_jobs(callback_with_shared_state)
+        except Exception as e:
+            logger.info(f"Rabbitmq stream connection lost: {e}")
+  
+        logger.info("Waitting for train jobs...")
+"""
 
 
 def _process_train_job(
@@ -88,6 +107,7 @@ def _launch_unity_instante(
         ):
     
     try:
+        rabbitmq_client.running_jobs_count += 1
         ml_log = []
         run_id = train_job_instance.run_id
         logger.info(f"Preparing to launch Unity instance {run_id}")
@@ -112,6 +132,8 @@ def _launch_unity_instante(
         job_count = redis_client.increment_trained_jobs_count()
         port_suffix = str(job_count % 20)
         port = "500" + port_suffix
+
+        base_model_scheckpoint = "base_model"
     
         os.chmod(env_pah, 0o777)
 
@@ -121,7 +143,9 @@ def _launch_unity_instante(
             f"--force "
             f"--env {env_pah} " 
             f"--no-graphics "
-            f"--base-port {port}"
+            f"--base-port {port} "
+            f"--initialize-from={base_model_scheckpoint} "
+            f"--torch-device cpu"
         )
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.STARTING
@@ -157,6 +181,8 @@ def _launch_unity_instante(
             train_job_instance.run_id, TrainJobInstanceStatus.SUCCEEDED
         )
 
+        rabbitmq_client.acknowledge_job_sucess(delivery_tag)
+
 
         logger.info(f"Unity instance SUCCEEDED {run_id}")
 
@@ -172,6 +198,8 @@ def _launch_unity_instante(
     finally:
         with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
             file.writelines(ml_log)
+        
+        rabbitmq_client.running_jobs_count -= 1
 
     
 def _send_model_to_endpoint(

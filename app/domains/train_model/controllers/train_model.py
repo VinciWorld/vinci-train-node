@@ -18,6 +18,7 @@ from app.domains.train_model.services.train_model import TrainModelService
 from app.settings.settings import settings
 
 
+from decouple import config
 
 logger = logging.getLogger(__name__) 
 
@@ -29,6 +30,8 @@ train_model_router = APIRouter(
 
 @train_model_router.on_event("startup")
 def on_train_model_router_startup():
+
+    logger.info(f"env secure: {config('SECURE_CONNECTION')} settings: {settings.http_prefix}")
 
     rabbitmq_client = get_rabbitmq_client()
     redis_client = get_redis_client()
@@ -83,7 +86,7 @@ async def ws_train_instance_stream(
 
                 logger.info(instance_response)
 
-                rabbitmq_client.acknowledge_job_sucess(delivery_tag)
+                # rabbitmq_client.acknowledge_job_sucess(delivery_tag)
                 rabbitmq_client.enqueue_train_job_status_update(
                     train_job_instance.run_id, TrainJobInstanceStatus.RUNNING
                 )

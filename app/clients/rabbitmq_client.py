@@ -30,6 +30,8 @@ class RabbitMQClient:
         self.train_job_lock = threading.Lock()
         self.train_job_status_uptade_lock = threading.Lock()
         self.consume_jobs_lock = threading.Lock()
+
+        self.running_jobs_count = 0
         
         try:
             self.train_job_channel.queue_declare(queue='jobs', durable=True, arguments={'x-max-priority': 5})
@@ -67,6 +69,17 @@ class RabbitMQClient:
                 )
             )
 
+    def dequeue_job(self):
+        with self.train_job_lock:
+            method_frame, header_frame, body = self.consume_train_jobs_channel.basic_get(queue='jobs', auto_ack=False)
+
+            if method_frame:
+                delivery_tag = method_frame.delivery_tag
+                job_data = json.loads(body.decode('utf-8'))
+                return job_data, delivery_tag
+            else:
+                return None
+
     def consume_jobs(self, callback: Callable):
         thread = threading.Thread(target=self._process_data_events, args=(callback, 'jobs'))
         thread.setDaemon(True)
@@ -76,9 +89,14 @@ class RabbitMQClient:
         self.consume_train_jobs_channel.basic_consume(queue=queue_name, on_message_callback=callback)
         logging.info(f"Start consuming {queue_name}")
         while self.is_consuming:
-            with self.train_job_lock:
-                self.consume_train_jobs_channel.connection.process_data_events()
-            time.sleep(0.1)  # Add sleep to reduce CPU usage
+
+            if self.running_jobs_count >= settings.max_jobs:
+                logger.info(f"Max jobs {settings.max_jobs} instances! instance running: {self.running_jobs_count}")
+                time.sleep(2)
+            else:
+                with self.train_job_lock:
+                    self.consume_train_jobs_channel.connection.process_data_events()
+                time.sleep(1)  # Add sleep to reduce CPU usage
 
         logging.info(f"Stop consuming {queue_name}")
 
