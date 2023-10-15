@@ -124,3 +124,4 @@ dmypy.json
 
 results/*
 !results/base_model/
+!results/base_model/**/*
