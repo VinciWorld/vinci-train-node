@@ -64,8 +64,8 @@ async def ws_train_instance_stream(
             central_node_url = train_job_instance.central_node_url
             logger.info(f"Connecting central node: {central_node_url}")
             logger.info(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream")
-            async with websockets.connect(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream") as ws_central:
-            #async with websockets.connect(f"ws://{central_node_url}/ws/v1/train-node-stream") as ws_central:
+            #async with websockets.connect(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream") as ws_central:
+            async with websockets.connect(f"wss://{central_node_url}/ws/v1/train-node-stream") as ws_central:
                 logger.info(f"Connected to central node: {central_node_url}")
                 data = {
                          "run_id": str(train_job_instance.run_id)
