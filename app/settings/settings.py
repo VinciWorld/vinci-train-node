@@ -18,6 +18,7 @@ RABBITMQ_PASSWORD=config('RABBITMQ_PASSWORD')
 RABBITMQ_HOST=config('RABBITMQ_HOST')
 RABBITMQ_PORT=config('RABBITMQ_PORT')
 MAX_JOBS = config('MAX_JOBS')
+RUNNER_ID: str = config('RUNNER_ID', default="unknown-runner")
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -47,6 +48,7 @@ class BaseConfig(BaseSettings):
     rabbitmq_password: str = RABBITMQ_PASSWORD
     rabbitmq_host: str = RABBITMQ_HOST
     rabbitmq_port: str = RABBITMQ_PORT
+    runner_id: str = RUNNER_ID
     s3_bucket: str = ""
     max_jobs: int = MAX_JOBS
     http_prefix: str = "http" if SECURE_CONNECTION else "https"
