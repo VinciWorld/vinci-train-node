@@ -4,14 +4,13 @@
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Key Responsibilities](#key-responsibilities)
-4. [Integration with Central Node](#integration)
-5. [Scalability](#scalability)
-6. [Local Environment Setup](#local-setup)
-7. [Getting Started](#getting-started)
+4. [Scalability](#scalability)
+5. [Local Environment Setup](#local-setup)
+6. [Getting Started](#getting-started)
    - [Prerequisites](#prerequisites)
    - [Local Setup](#local-setup)
    - [Environment Configuration](#environment-configuration)
-8. [Conclusion](#conclusio
+7. [Conclusion](#conclusion)
 ---
 
 ### Overview <a name="overview"></a>
