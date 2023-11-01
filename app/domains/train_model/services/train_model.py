@@ -205,7 +205,7 @@ def _launch_unity_instante(
         ml_log.append(str(e))
         return
     finally:
-        with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
+        with open(f"{run_path}/ml_log.txt", mode="w", buffering=1) as file:
             file.writelines(ml_log)
         
         rabbitmq_client.running_jobs_count -= 1
@@ -278,6 +278,11 @@ def _send_train_results(
         "run_logs": ["Player-0.log", "timers.json", "training_status.json"]
     }
 
+    file_renames = {
+        f"{behavior_name}.onnx": "model.onnx",
+        "Player-0.log": "unity.log"
+    }
+
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED) as zf:
@@ -291,7 +296,8 @@ def _send_train_results(
                 relative_dirpath = os.path.relpath(dirpath, directory_to_zip)
                 if relative_dirpath in files_to_include and filename in files_to_include[relative_dirpath]:
                     file_path = os.path.join(dirpath, filename)
-                    zf.write(file_path, filename)
+                    arcname = file_renames.get(filename, filename)
+                    zf.write(file_path, arcname)
         
         json_content = json.dumps(metrics, indent=4)
         zf.writestr('metrics_data.json', json_content)
