@@ -251,7 +251,7 @@ def _send_model_to_endpoint(
         with httpx.Client() as client:
             with open(model_path, 'rb') as model_file:
                 files = {'nn_model': model_file}
-                response = client.put(url, files=files)
+                response = client.post(url, files=files)
 
         if response.status_code == 200:
             return response.json()
