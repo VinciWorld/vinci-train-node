@@ -59,13 +59,13 @@ async def ws_train_instance_stream(
         logger.info(f"Welcome from instance")
 
         train_job_instance = redis_client.retrieve_current_train_job()
-        delivery_tag = redis_client.get_delivery_tag(train_job_instance.run_id)
+        #delivery_tag = redis_client.get_delivery_tag(train_job_instance.run_id)
         if train_job_instance:
             central_node_url = train_job_instance.central_node_url
             logger.info(f"Connecting central node: {central_node_url}")
             logger.info(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream")
-            #async with websockets.connect(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream") as ws_central:
-            async with websockets.connect(f"wss://{central_node_url}/ws/v1/train-node-stream") as ws_central:
+            async with websockets.connect(f"{settings.ws_prefix}://{central_node_url}/ws/v1/train-node-stream") as ws_central:
+            #async with websockets.connect(f"wss://{central_node_url}/ws/v1/train-node-stream") as ws_central:
                 logger.info(f"Connected to central node: {central_node_url}")
                 data = {
                          "run_id": str(train_job_instance.run_id)
@@ -131,8 +131,6 @@ async def ws_train_instance_stream(
                 logger.info(f"Central WebSocket closed")
         except Exception as e:
             logger.error(f"Error closing central Node WebSocket: {e}")
-
-
 
 
 async def send_metrics_data_to_central_node(
