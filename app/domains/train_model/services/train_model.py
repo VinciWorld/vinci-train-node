@@ -307,7 +307,7 @@ def _send_train_results(
     try:
         with httpx.Client() as client:
             files = {'results_zip': ('results.zip', zip_buffer)}
-            response = client.put(url, files=files)
+            response = client.post(url, files=files)
 
         if response.status_code == 200:
             return response.json()
