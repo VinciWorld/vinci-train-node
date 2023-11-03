@@ -273,7 +273,7 @@ def _send_train_results(
     directory_to_zip = f"results/{run_id}/"
 
     files_to_include = {
-        "": ["configuration.yaml", "metrics.txt", f"{behavior_name}.onnx"],
+        ".": ["configuration.yaml", "metrics.txt", f"{behavior_name}.onnx"],
         behavior_name: ["checkpoint.pt"],
         "run_logs": ["Player-0.log", "timers.json", "training_status.json"]
     }
