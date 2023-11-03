@@ -1,18 +1,19 @@
 import socket
 from datetime import datetime
-from app.settings.settings import settings
+from app.settings.settings import Environments, settings
 import logging
 import boto3
 
 class CloudWatchLogHandler(logging.Handler):
     def __init__(self, log_group, stream_name):
-        logging.Handler.__init__(self)
-        self.log_group = log_group
-        self.stream_name = stream_name
-        self.logs_client = boto3.client('logs', region_name="eu-central-1")
-        self.sequence_token = None
-        # Ensure the current log stream exists before sending logs
-        self.ensure_log_stream_exists()
+
+            logging.Handler.__init__(self)
+            self.log_group = log_group
+            self.stream_name = stream_name
+            self.logs_client = boto3.client('logs', region_name="eu-central-1")
+            self.sequence_token = None
+            # Ensure the current log stream exists before sending logs
+            self.ensure_log_stream_exists()
 
     def ensure_log_stream_exists(self):
         try:
@@ -50,6 +51,10 @@ class CloudWatchLogHandler(logging.Handler):
 
 
 def setup_cloudwatch_logging():
+
+    if settings.env == Environments.LOCAL:
+        return
+
     log_group = "vinci-world-cloud-dev-DockerTrainNodeLogGroup"
 
     hostname = socket.gethostname()

@@ -109,6 +109,7 @@ def _launch_unity_instante(
     try:
         rabbitmq_client.running_jobs_count += 1
         ml_log = []
+        train_metrics = []
         run_id = train_job_instance.run_id
         logger.info(f"Preparing to launch Unity instance {run_id}")
 
@@ -161,7 +162,9 @@ def _launch_unity_instante(
             line = line.decode('utf-8')
             ml_log.append(line)
             metrics = _extract_metrics(line)
+            
             if metrics:
+                train_metrics.append(metrics)
                 redis_client.push_log_metrics(run_id, metrics)
 
             if retcode is not None:
@@ -170,11 +173,17 @@ def _launch_unity_instante(
                 ml_log.append("exit")
                 break
 
-        _send_model_to_endpoint(
+        #_send_model_to_endpoint(
+        #    run_id,
+        #    behaviour_name,
+        #    train_job_instance.central_node_url
+        #)
+
+        _send_train_results(
             run_id,
             behaviour_name,
-            train_job_instance.central_node_url
-
+            train_job_instance.central_node_url,
+            train_metrics
         )
 
         rabbitmq_client.enqueue_train_job_status_update(
@@ -196,20 +205,20 @@ def _launch_unity_instante(
         ml_log.append(str(e))
         return
     finally:
-        with open(f"{run_path}/metrics.txt", mode="w", buffering=1) as file:
+        with open(f"{run_path}/ml_log.txt", mode="w", buffering=1) as file:
             file.writelines(ml_log)
         
         rabbitmq_client.running_jobs_count -= 1
 
-    
-def _send_model_to_endpoint(
+
+def _send_model_checkpooint_and_metrics(
         run_id: uuid.UUID,
         behavior_name: str,
         central_node_host: str
     ):
 
-    #url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
-    url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+    #url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
 
     model_path = f"results/{run_id}/{behavior_name}.onnx"
 
@@ -227,32 +236,78 @@ def _send_model_to_endpoint(
     except Exception as e:
         print(f"Error: {e}")
 
-
-def _send_train_results(
+def _send_model_to_endpoint(
         run_id: uuid.UUID,
         behavior_name: str,
         central_node_host: str
     ):
-    
-    #url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/results"
-    url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/results"
+
+    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+    #url = f"https://{central_node_host}/api/v1/train-jobs/{run_id}/nn-model"
+
+    model_path = f"results/{run_id}/{behavior_name}.onnx"
+
+    try:
+        with httpx.Client() as client:
+            with open(model_path, 'rb') as model_file:
+                files = {'nn_model': model_file}
+                response = client.post(url, files=files)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception(f"Failed to send model. Status code: {response.status_code}, Response: {response.text}")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+def _send_train_results(
+        run_id: uuid.UUID,
+        behavior_name: str,
+        central_node_host: str,
+        metrics: list
+    ):
+
+    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/results"
     directory_to_zip = f"results/{run_id}/"
+
+    files_to_include = {
+        ".": ["configuration.yaml", "metrics.txt", f"{behavior_name}.onnx"],
+        behavior_name: ["checkpoint.pt"],
+        "run_logs": ["Player-0.log", "timers.json", "training_status.json"]
+    }
+
+    file_renames = {
+        f"{behavior_name}.onnx": "model.onnx",
+        "Player-0.log": "unity.log"
+    }
 
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED) as zf:
-        for foldername, subfolders, filenames in os.walk(directory_to_zip):
-            for filename in filenames:
-                file_path = os.path.join(foldername, filename)
-                arcname = os.path.relpath(file_path, directory_to_zip)
-                zf.write(file_path, arcname)
+        for dirpath, subdirs, files in os.walk(directory_to_zip):
+            for filename in files:
+                if dirpath.endswith(behavior_name) and filename.startswith("events.out.tfevents."):
+                    file_path = os.path.join(dirpath, filename)
+                    zf.write(file_path, filename)
+                    continue
+
+                relative_dirpath = os.path.relpath(dirpath, directory_to_zip)
+                if relative_dirpath in files_to_include and filename in files_to_include[relative_dirpath]:
+                    file_path = os.path.join(dirpath, filename)
+                    arcname = file_renames.get(filename, filename)
+                    zf.write(file_path, arcname)
+        
+        json_content = json.dumps(metrics, indent=4)
+        zf.writestr('metrics_data.json', json_content)
 
     zip_buffer.seek(0)
 
     try:
         with httpx.Client() as client:
             files = {'results_zip': ('results.zip', zip_buffer)}
-            response = client.put(url, files=files)
+            response = client.post(url, files=files)
 
         if response.status_code == 200:
             return response.json()
