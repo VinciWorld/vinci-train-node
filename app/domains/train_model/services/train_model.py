@@ -133,6 +133,7 @@ def _launch_unity_instante(
             UpdateMaxSteps(steps, behaviour_name)
             model_checkpoint_id = None #"base_model"
 
+
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
         env_pah = settings.unity_envs_dir / train_job_instance.env_config.env_id / "env.x86_64"
 
@@ -154,6 +155,7 @@ def _launch_unity_instante(
         )
 
         if model_checkpoint_id is not None:
+            cmd = cmd.replace("--force", "--resume")
             cmd += f"--initialize-from={model_checkpoint_id}"
 
         rabbitmq_client.enqueue_train_job_status_update(
@@ -208,6 +210,7 @@ def _launch_unity_instante(
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.FAILED
         )
+        UpdateMaxSteps(-steps, behaviour_name, True)
 
         rabbitmq_client.acknowledge_job_failed_and_requeue(delivery_tag)
         ml_log.append(str(e))
@@ -230,16 +233,16 @@ def _retrieve_and_save_model_checkpoint(
         with httpx.Client() as client:
             response = client.get(url)
 
-        if response.status_code == 200:
-            checkpoint_dir = Path("results") / str(run_id) / behavior_name
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            checkpoint_path = checkpoint_dir / "checkpoint.pt"
-            
-            with open(checkpoint_path, mode="wb") as file:
-                file.write(response.content)
-
-        else:
-            raise Exception(f"Failed to retrieve model checkpoint. Status code: {response.status_code}")
+            logger.info("checkpoint Status: {response.status_code}")
+            if response.status_code == 200:
+                checkpoint_dir = Path("results") / str(run_id) / behavior_name
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                checkpoint_path = checkpoint_dir / "checkpoint.pt"
+                logger.info(f"Save checkpoint run id: {str(run_id)} at {checkpoint_path}")
+                with open(checkpoint_path, mode="wb") as file:
+                    file.write(response.content)
+            else:
+                raise Exception(f"Failed to retrieve model checkpoint. Status code: {response.status_code}")
     except Exception as e:
         raise e
 
