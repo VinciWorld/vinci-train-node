@@ -2,10 +2,14 @@
 #FROM  nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 FROM nvidia/cuda:12.2.2-base-ubuntu22.04
 
+RUN echo "Current PATH: $PATH"
+
 ENV PYTHONUNBUFFERED 1
-ENV PATH="/root/.local/bin:/root/.pyenv/bin:$PATH"
+ENV PATH="/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/root/.pyenv/bin"
 ENV PYTHONPATH='./'
 ENV TZ=UTC
+
+RUN echo "Current PATH: $PATH"
 
 WORKDIR /usr/src
 
@@ -68,10 +72,18 @@ COPY ./pyproject.toml /usr/src/pyproject.toml
 
 RUN ls -l
 
+ENV POETRY_REQUESTS_TIMEOUT=60
+
+RUN echo "Current PATH: $PATH"
+RUN nvidia-smi
+
 # Install Poetry and configure it to use the existing virtual environment
-RUN apt-get update -y && apt-get install curl -y \
+RUN apt-get update -y && apt-get install -y curl \
     && curl -sSL https://install.python-poetry.org | python3.10 - --version 1.6.1 \
     && poetry config virtualenvs.create false \
-   # && poetry config installer.max-workers 10 \
+    && poetry config installer.max-workers 10 \
     && poetry install \
     && apt-get remove curl -y
+
+
+RUN nvidia-smi

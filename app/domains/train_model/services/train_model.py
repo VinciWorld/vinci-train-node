@@ -145,8 +145,8 @@ def _launch_unity_instante(
             f"--env {env_pah} " 
             f"--no-graphics "
             f"--base-port {port} "
-            f"--initialize-from={base_model_scheckpoint} "
-            f"--torch-device cpu"
+            #f"--initialize-from={base_model_scheckpoint} "
+            f"--torch-device cuda"
         )
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.STARTING
