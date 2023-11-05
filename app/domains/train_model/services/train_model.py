@@ -4,6 +4,7 @@ from io import BytesIO
 import json
 import logging
 import os
+from pathlib import Path
 import subprocess
 import threading
 import re
@@ -121,10 +122,16 @@ def _launch_unity_instante(
         behaviour_name = train_job_instance.nn_model_config.behavior_name
         steps = train_job_instance.nn_model_config.steps
 
+
+        model_checkpoint_id = None
         if train_job_instance.job_type == TrainJobType.RESUME:
             UpdateMaxSteps(steps, behaviour_name, True)
+            _retrieve_and_save_model_checkpoint(run_id, behaviour_name, train_job_instance.central_node_url)
+            model_checkpoint_id = str(run_id)
+
         else:
             UpdateMaxSteps(steps, behaviour_name)
+            model_checkpoint_id = None #"base_model"
 
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
         env_pah = settings.unity_envs_dir / train_job_instance.env_config.env_id / "env.x86_64"
@@ -134,8 +141,6 @@ def _launch_unity_instante(
         port_suffix = str(job_count % 20)
         port = "500" + port_suffix
 
-        base_model_scheckpoint = "base_model"
-    
         os.chmod(env_pah, 0o777)
 
         cmd = (
@@ -145,9 +150,12 @@ def _launch_unity_instante(
             f"--env {env_pah} " 
             f"--no-graphics "
             f"--base-port {port} "
-            #f"--initialize-from={base_model_scheckpoint} "
-            f"--torch-device cuda"
+            f"--torch-device cpu "
         )
+
+        if model_checkpoint_id is not None:
+            cmd += f"--initialize-from={model_checkpoint_id}"
+
         rabbitmq_client.enqueue_train_job_status_update(
             train_job_instance.run_id, TrainJobInstanceStatus.STARTING
         )
@@ -201,7 +209,7 @@ def _launch_unity_instante(
             train_job_instance.run_id, TrainJobInstanceStatus.FAILED
         )
 
-        rabbitmq_client.acknowledge_job_failed(delivery_tag)
+        rabbitmq_client.acknowledge_job_failed_and_requeue(delivery_tag)
         ml_log.append(str(e))
         return
     finally:
@@ -211,6 +219,31 @@ def _launch_unity_instante(
         rabbitmq_client.running_jobs_count -= 1
 
 
+def _retrieve_and_save_model_checkpoint(
+        run_id: uuid.UUID,
+        behavior_name: str,
+        central_node_host: str
+):
+    url = f"{settings.http_prefix}://{central_node_host}/api/v1/train-jobs/{run_id}/checkpoint"
+
+    try:
+        with httpx.Client() as client:
+            response = client.get(url)
+
+        if response.status_code == 200:
+            checkpoint_dir = Path("results") / str(run_id) / behavior_name
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            checkpoint_path = checkpoint_dir / "checkpoint.pt"
+            
+            with open(checkpoint_path, mode="wb") as file:
+                file.write(response.content)
+
+        else:
+            raise Exception(f"Failed to retrieve model checkpoint. Status code: {response.status_code}")
+    except Exception as e:
+        raise e
+
+    
 def _send_model_checkpooint_and_metrics(
         run_id: uuid.UUID,
         behavior_name: str,
