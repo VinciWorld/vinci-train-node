@@ -112,7 +112,7 @@ def _launch_unity_instante(
         ml_log = []
         train_metrics = []
         run_id = train_job_instance.run_id
-        logger.info(f"Preparing to launch Unity instance {run_id}")
+        logger.info(f"Preparing to launch Unity instance {train_job_instance}")
 
         run_path = settings.unity_reults / str(run_id)
         run_path.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,6 @@ def _launch_unity_instante(
 
         else:
             UpdateMaxSteps(steps, behaviour_name)
-            model_checkpoint_id = None #"base_model"
 
 
         behaviour_path = settings.unity_behaviors_dir / f"{behaviour_name}.yml"
