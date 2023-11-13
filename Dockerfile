@@ -66,7 +66,6 @@ RUN ls -l
 ENV POETRY_REQUESTS_TIMEOUT=60
 
 RUN echo "Current PATH: $PATH"
-RUN nvidia-smi
 
 RUN apt-get update -y && apt-get install -y curl \
     && curl -sSL https://install.python-poetry.org | python3.10 - --version 1.6.1 \
